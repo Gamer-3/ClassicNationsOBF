@@ -425,6 +425,8 @@ do
 
     if S then
         core.Active = true
+	end
+end
 			Event:connect(function()
 				local Input = core.InputBegan:connect(function(Key)
 					if Key.UserInputType == Enum.UserInputType.MouseButton1 then
