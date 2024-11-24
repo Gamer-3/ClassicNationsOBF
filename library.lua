@@ -339,94 +339,139 @@ function Library:object(class, properties)
 	})
 end
 
--- Default settings definition
-local settings = {
-    Theme = "Dark" -- default theme
-}
-
-if readfile and writefile and isfile then
-    print("Checking for ElysiumSettings.json...")
-
-    if not isfile("ElysiumSettings.json") then
-        print("ElysiumSettings.json does not exist. Creating file with default settings.")
-        writefile("ElysiumSettings.json", HTTPService:JSONEncode(settings)) -- Create file with default settings
-    else
-        print("ElysiumSettings.json found. Reading settings.")
-    end
-
-    -- Read the settings from the file
-    settings = HTTPService:JSONDecode(readfile("ElysiumSettings.json"))
-
-    -- Ensure the CurrentTheme is set with a fallback to Dark if invalid
-    Library.CurrentTheme = Library.Themes[settings.Theme] or Library.Themes["Dark"]
-
-    -- Update settings function
-    updateSettings = function(property, value)
-        settings[property] = value
-        writefile("ElysiumSettings.json", HTTPService:JSONEncode(settings))
-    end
-else
-    print("File handling functions unavailable.")
-end
-
-if options.Link:sub(-1, -1) == "/" then
-    options.Link = options.Link:sub(1, -2)
-end
-
-if options.Theme and options.Theme.Light then
-    self.darken, self.lighten = self.lighten, self.darken
-end
-
--- Validate and set CurrentTheme
-local themeName = options.Theme or "Dark" -- Fallback to default if not specified
-if Library.Themes and Library.Themes[themeName] then
-    self.CurrentTheme = Library.Themes[themeName]
-else
-    print("Warning: Theme '" .. themeName .. "' is not defined. Falling back to default 'Dark' theme.")
-    self.CurrentTheme = Library.Themes["Dark"] -- Ensure default theme is used
-end
-
--- Create GUI components
-local gui = self:object("ScreenGui", {
-    Parent = (RunService:IsStudio() and LocalPlayer.PlayerGui) or game:GetService("CoreGui"),
-    ZIndexBehavior = Enum.ZIndexBehavior.Global
-})
-
-local notificationHolder = gui:object("Frame", {
-    AnchorPoint = Vector2.new(1, 1),
-    BackgroundTransparency = 1,
-    Position = UDim2.new(1, -30, 1, -30),
-    Size = UDim2.new(0, 300, 1, -60)
-})
-
-local _notiHolderList = notificationHolder:object("UIListLayout", {
-    Padding = UDim.new(0, 20),
-    VerticalAlignment = Enum.VerticalAlignment.Bottom
-})
-
-local core = gui:object("Frame", {
-    Size = UDim2.new(),
-    Theme = { BackgroundColor3 = "Main" },
-    Centered = true,
-    ClipsDescendants = true
-}):round(10)
-
-core:fade(true, nil, 0.2, true)
-
-core:fade(false, nil, 0.4)
-core:tween({ Size = options.Size, Length = 0.3 }, function()
-    core.ClipsDescendants = false
-end)
-
-do
-    local S, Event = pcall(function()
-        return core.MouseEnter
-    end)
-
-    if S then
-        core.Active = true
+function Library:show(state)
+	self.Toggled = state
+	self.mainFrame.ClipsDescendants = true
+	if state then
+		self.mainFrame:tween({Size = self.mainFrame.oldSize, Length = 0.25}, function()
+			rawset(self.mainFrame, "oldSize", (state and self.mainFrame.oldSize) or self.mainFrame.Size)
+			self.mainFrame.ClipsDescendants = false
+		end)
+		wait(0.15)
+		self.mainFrame:fade(not state, self.mainFrame.BackgroundColor3, 0.15)
+	else		
+		self.mainFrame:fade(not state, self.mainFrame.BackgroundColor3, 0.15)
+		wait(0.1)
+		self.mainFrame:tween{Size = UDim2.new(), Length = 0.25}
 	end
 end
+
+function Library:darken(color, f)
+	local h, s, v = Color3.toHSV(color)
+	f = 1 - ((f or 15) / 80)
+	return Color3.fromHSV(h, math.clamp(s/f, 0, 1), math.clamp(v*f, 0, 1))
+end
+
+function Library:lighten(color, f)
+	local h, s, v = Color3.toHSV(color)
+	f = 1 - ((f or 15) / 80)
+	return Color3.fromHSV(h, math.clamp(s*f, 0, 1), math.clamp(v/f, 0, 1))
+end
+
+--[[ old lighten/darken functions, may revert if contrast gets fucked up
+
+	function Library:darken(color, f)
+		local h, s, v = Color3.toHSV(color)
+		f = f or 15
+		return Color3.fromHSV(h, s, math.clamp(v - (f/255), 0, 1))
+	end
+
+	function Library:lighten(color, f)
+		local h, s, v = Color3.toHSV(color)
+		f = f or 15
+		return Color3.fromHSV(h, s, math.clamp(v + (f/255), 0, 1))
+	end
+	
+]]
+
+local updateSettings = function() end
+
+function Library:set_status(txt)
+	self.statusText.Text = txt
+end
+
+function Library:create(options)
+
+	local settings = {
+		Theme = "Dark"
+	}
+
+	if readfile and writefile and isfile then
+		if not isfile("ElysiumSettings.json") then
+			writefile("ElysiumSettings.json", HTTPService:JSONEncode(settings))
+		end
+		settings = HTTPService:JSONDecode(readfile("ElysiumSettings.json"))
+		Library.CurrentTheme = Library.Themes[settings.Theme]
+		updateSettings = function(property, value)
+			settings[property] = value
+			writefile("ElysiumSettings.json", HTTPService:JSONEncode(settings))
+		end
+	end
+
+	options = self:set_defaults({
+		Name = "Elysium",
+		Size = UDim2.fromOffset(600, 400),
+		Theme = self.Themes[settings.Theme],
+		Link = "https://github.com/deeeity/Elysium-lib"
+	}, options)
+
+	if getgenv and getgenv().ElysiumUI then
+		getgenv():ElysiumUI()
+		getgenv().ElysiumUI = nil
+	end
+
+
+
+	if options.Link:sub(-1, -1) == "/" then
+		options.Link = options.Link:sub(1, -2)
+	end
+
+	if options.Theme.Light then
+		self.darken, self.lighten = self.lighten, self.darken
+	end
+
+	self.CurrentTheme = options.Theme
+
+	local gui = self:object("ScreenGui", {
+		Parent = (RunService:IsStudio() and LocalPlayer.PlayerGui) or game:GetService("CoreGui"),
+		ZIndexBehavior = Enum.ZIndexBehavior.Global
+	})
+
+	local notificationHolder = gui:object("Frame", {
+		AnchorPoint = Vector2.new(1, 1),
+		BackgroundTransparency = 1,
+		Position = UDim2.new(1, -30,1, -30),
+		Size = UDim2.new(0, 300, 1, -60)
+	})
+
+	local _notiHolderList = notificationHolder:object("UIListLayout", {
+		Padding = UDim.new(0, 20),
+		VerticalAlignment = Enum.VerticalAlignment.Bottom
+	})
+
+	local core = gui:object("Frame", {
+		Size = UDim2.new(),
+		Theme = {BackgroundColor3 = "Main"},
+		Centered = true,
+		ClipsDescendants = true		
+	}):round(10)
+
+	core:fade(true, nil, 0.2, true)
+
+
+	core:fade(false, nil, 0.4)
+	core:tween({Size = options.Size, Length = 0.3}, function()
+		core.ClipsDescendants = false
+	end)
+
+	do
+		local S, Event = pcall(function()
+			return core.MouseEnter
+		end)
+
+		if S then
+			core.Active = true;
+
 			Event:connect(function()
 				local Input = core.InputBegan:connect(function(Key)
 					if Key.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -590,7 +635,7 @@ end
 		Position = UDim2.new(0, 5, 1, -6),
 		Size = UDim2.new(0.2, 0, 0, 10),
 		Font = Enum.Font.SourceSans,
-		Text = "Status | Online",
+		Text = "Status | Idle",
 		Theme = {TextColor3 = "Tertiary"},
 		TextSize = 14,
 		TextXAlignment = Enum.TextXAlignment.Left
@@ -851,9 +896,10 @@ end
 
 	rawset(mt, "creditsContainer", creditsTab.container)
 
-	creditsTab:credit{Name = "luckyCamen", Description = "Script Creator", Discord = "One#8482", V3rmillion = ""}
 	creditsTab:credit{Name = "Abstract", Description = "UI Library Developer", Discord = "Abstract#8007", V3rmillion = "AbstractPoo"}
 	creditsTab:credit{Name = "Deity", Description = "UI Library Developer", Discord = "Deity#0228", V3rmillion = "0xDEITY"}
+	creditsTab:credit{Name = "Repository", Description = "UI Library Repository", Github="https://github.com/deeeity/Elysium-lib/blob/master/src.lua"}
+
 	return mt
 end
 
