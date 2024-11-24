@@ -392,34 +392,35 @@ end
 
 function Library:create(options)
 
-	local settings = {
-		Theme = "Dark"
-	}
+    -- Default settings definition
+    local settings = {
+        Theme = "Dark" -- default theme
+    }
 
-	if readfile and writefile and isfile then
-		if not isfile("ElysiumSettings.json") then
-			writefile("ElysiumySettings.json", HTTPService:JSONEncode(settings))
-		end
-		settings = HTTPService:JSONDecode(readfile("ElysiumSettings.json"))
-		Library.CurrentTheme = Library.Themes[settings.Theme]
-		updateSettings = function(property, value)
-			settings[property] = value
-			writefile("ElysiumSettings.json", HTTPService:JSONEncode(settings))
-		end
-	end
+    if readfile and writefile and isfile then
+        print("Checking for ElysiumSettings.json...")
 
-	options = self:set_defaults({
-		Name = "Elysium Hub",
-		Size = UDim2.fromOffset(600, 400),
-		Theme = self.Themes[settings.Theme],
-		Link = "Elysium is a newly created hub for lesser-known games, and we support most free executors."
-	}, options)
+        if not isfile("ElysiumSettings.json") then
+            print("ElysiumSettings.json does not exist. Creating file with default settings.")
+            writefile("ElysiumSettings.json", HTTPService:JSONEncode(settings)) -- Create file with default settings
+        else
+            print("ElysiumSettings.json found. Reading settings.")
+        end
 
-	if getgenv and getgenv().ElysiumUI then
-		getgenv():ElysiumUI()
-		getgenv().ElysiumUI = nil
-	end
+        -- Read the settings from the file
+        settings = HTTPService:JSONDecode(readfile("ElysiumSettings.json"))
+        
+        -- Ensure the CurrentTheme is set fallback
+        Library.CurrentTheme = Library.Themes[settings.Theme] or Library.Themes["Dark"]
 
+        -- Update settings function
+        updateSettings = function(property, value)
+            settings[property] = value
+            writefile("ElysiumSettings.json", HTTPService:JSONEncode(settings))
+        end
+    else
+        print("File handling functions unavailable.")
+    end
 
 
 	if options.Link:sub(-1, -1) == "/" then
